@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grand Luxury Tree Final v2</title>
+    <title>Grand Luxury Heart</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Times New Roman', serif; }
         #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -49,6 +49,7 @@
             letter-spacing: 6px; 
             text-shadow: 0 0 50px rgba(252, 238, 167, 0.6); 
             background: linear-gradient(to bottom, #fff, #eebb66);
+            background-clip: text;
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             font-family: 'Cinzel', 'Times New Roman', serif;
             opacity: 0.9;
@@ -124,7 +125,7 @@
     <div id="canvas-container"></div>
 
     <div id="ui-layer">
-        <h1>Merry Christmas</h1>
+        <h1>Love</h1>
         
         <div class="upload-wrapper">
             <label class="upload-btn">
@@ -159,7 +160,7 @@
                 accentRed: 0x990000,     
             },
             particles: {
-                count: 1500,     
+                count: 4500,     
                 dustCount: 2500, 
                 treeHeight: 24,  
                 treeRadius: 8    
@@ -193,6 +194,7 @@
             createParticles(); 
             createDust();     
             createDefaultPhotos();
+            await createImageFolderPhotos();
             setupPostProcessing();
             setupEvents();
             await initMediaPipe();
@@ -306,17 +308,44 @@
             }
 
             calculatePositions() {
-                // TREE: Tight Spiral
-                const h = CONFIG.particles.treeHeight;
-                const halfH = h / 2;
-                let t = Math.random(); 
-                t = Math.pow(t, 0.8); 
-                const y = (t * h) - halfH;
-                let rMax = CONFIG.particles.treeRadius * (1.0 - t); 
-                if (rMax < 0.5) rMax = 0.5;
-                const angle = t * 50 * Math.PI + Math.random() * Math.PI; 
-                const r = rMax * (0.8 + Math.random() * 0.4); 
-                this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+                // "TREE" mode shape: Filled Heart (3D thickness)
+                // Heart implicit: (x^2 + y^2 - 1)^3 - x^2 y^3 <= 0
+                const h = CONFIG.particles.treeHeight;   // used as heart height scale
+                const w = CONFIG.particles.treeRadius;   // used as heart width scale
+
+                const insideHeart = (x, y) => {
+                    const a = x*x + y*y - 1;
+                    return (a*a*a - x*x*y*y*y) <= 0;
+                };
+
+                // Rejection sample a point uniformly-ish inside the 2D heart
+                let x = 0, y = 0;
+                for (let tries = 0; tries < 60; tries++) {
+                    const rx = (Math.random() * 2 - 1) * 1.55;   // [-1.55, 1.55]
+                    const ry = (Math.random() * 2 - 1) * 1.65;   // [-1.65, 1.65]
+                    if (insideHeart(rx, ry)) { x = rx; y = ry; break; }
+                }
+
+                // Scale to scene units (a slightly "plump" heart)
+                const scaleX = w * 1.15;
+                const scaleY = h * 0.46;
+
+                // Make it read more like a heart: bottom narrower, top wider
+                // y is roughly in [-1.65, 1.65] before scaling
+                const yNorm = THREE.MathUtils.clamp((y + 1.65) / 3.3, 0.1, 1); // 0(bottom) -> 1(top)
+                const widthWarp = 0.62 + 0.75 * Math.pow(yNorm, 1.35);
+                x *= widthWarp;
+
+                // Give the heart some thickness in Z; thicker near center
+                // Also taper Z depth near the bottom tip so it reads cleaner
+                const centerFactor = Math.max(0, 1 - (x*x + y*y) / 3.0);
+                const depthWarp = 0.01 + 0.5 * Math.pow(yNorm, 1.1); // bottom thinner -> top thicker
+                const thickness = w * (0.18 + 0.42 * centerFactor) * depthWarp;
+                const z = (Math.random() * 2 - 1) * thickness;
+
+                // Lift a touch so it sits nicely in frame
+                const yOffset = 1.0;
+                this.posTree.set(x * scaleX, y * scaleY + yOffset, z);
 
                 // SCATTER: 3D Sphere
                 let rScatter = this.isDust ? (12 + Math.random()*20) : (8 + Math.random()*12);
@@ -434,7 +463,8 @@
                     type = 'CANE';
                 }
 
-                const s = 0.4 + Math.random() * 0.5;
+                // Slightly smaller particles so the heart reads denser/cleaner
+                const s = 0.28 + Math.random() * 0.35;
                 mesh.scale.set(s,s,s);
                 mesh.rotation.set(Math.random()*6, Math.random()*6, Math.random()*6);
                 
@@ -448,7 +478,8 @@
                 metalness: 1.0, roughness: 0
             });
             const star = new THREE.Mesh(starGeo, starMat);
-            star.position.set(0, CONFIG.particles.treeHeight/2 + 1.2, 0);
+            // Place the "star" near the top of the heart
+            star.position.set(0, CONFIG.particles.treeHeight * 0.55 + 1.2, 0);
             mainGroup.add(star);
             
             mainGroup.add(photoMeshGroup);
@@ -474,8 +505,8 @@
             ctx.strokeStyle = '#eebb66'; ctx.lineWidth = 15; ctx.strokeRect(20,20,472,472);
             ctx.font = '500 60px Times New Roman'; ctx.fillStyle = '#eebb66';
             ctx.textAlign = 'center'; 
-            ctx.fillText("JOYEUX", 256, 230);
-            ctx.fillText("NOEL", 256, 300);
+            ctx.fillText("I LOVE", 256, 230);
+            ctx.fillText("YOU", 256, 300);
             
             const tex = new THREE.CanvasTexture(canvas);
             tex.colorSpace = THREE.SRGBColorSpace;
@@ -501,6 +532,48 @@
             
             photoMeshGroup.add(group);
             particleSystem.push(new Particle(group, 'PHOTO', false));
+        }
+
+        function loadTexture(url) {
+            return new Promise((resolve, reject) => {
+                new THREE.TextureLoader().load(
+                    url,
+                    (t) => resolve(t),
+                    undefined,
+                    (err) => reject(err)
+                );
+            });
+        }
+
+        async function createImageFolderPhotos() {
+            // NOTE: Browsers can't "list" a folder at runtime; we explicitly include files we ship.
+            const urls = [
+                'image/1.png',
+                'image/2.png',
+                'image/3.png',
+                'image/4.png',
+                'image/5.png',
+                'image/6.png'
+            ];
+
+            const results = await Promise.allSettled(
+                urls.map(async (url) => {
+                    const t = await loadTexture(url);
+                    t.colorSpace = THREE.SRGBColorSpace;
+                    addPhotoToScene(t);
+                    return url;
+                })
+            );
+
+            const failed = results
+                .map((r, i) => ({ r, url: urls[i] }))
+                .filter(({ r }) => r.status === 'rejected')
+                .map(({ url }) => url);
+
+            if (failed.length) {
+                console.warn('[init] Failed to load some images from /image:', failed);
+                console.warn('Tip: Please open via a local server (not file://) so images can be fetched.');
+            }
         }
         
         function handleImageUpload(e) {

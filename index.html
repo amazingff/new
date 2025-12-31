@@ -62,7 +62,7 @@
     <div id="loading">正在加载模型和摄像头...</div>
     <div id="canvas-container"></div>
     <div id="video-container">
-        <video id="input_video"></video>
+        <video id="input_video" playsinline autoplay muted></video>
     </div>
 
     <script>
@@ -402,6 +402,15 @@
 
         // --- MediaPipe Hands 设置 ---
         const videoElement = document.getElementById('input_video');
+        // iOS/Safari 需要 playsinline + autoplay + muted 才能内联播放
+        videoElement.setAttribute('playsinline', 'true');
+        videoElement.setAttribute('autoplay', 'true');
+        videoElement.muted = true;
+        // 一旦视频开始播放，移除加载提示，避免长时间停留
+        videoElement.addEventListener('playing', () => {
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) loadingEl.style.display = 'none';
+        });
         
         function onResults(results) {
             document.getElementById('loading').style.display = 'none';
@@ -453,7 +462,8 @@
             maxNumHands: 1,
             modelComplexity: 1,
             minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minTrackingConfidence: 0.5,
+            selfieMode: true // 镜像自拍模式，提高与视频一致性
         });
 
         hands.onResults(onResults);
@@ -462,13 +472,48 @@
             onFrame: async () => {
                 await hands.send({image: videoElement});
             },
-            width: 1920, 
-            height: 1080
+            width: 1280,
+            height: 720
         });
 
         // 启动
         initThree();
-        cameraUtils.start();
+        (async () => {
+            try {
+                await cameraUtils.start();
+            } catch (err) {
+                console.error('Camera start failed:', err);
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) loadingEl.textContent = '摄像头启动失败，请点击允许或刷新重试';
+
+                // 备用方案：直接使用 getUserMedia
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: 'user' },
+                            audio: false
+                        });
+                        videoElement.srcObject = stream;
+                        await videoElement.play();
+                        if (loadingEl) loadingEl.style.display = 'none';
+
+                        // 将帧推送到 MediaPipe
+                        async function pump() {
+                            try {
+                                await hands.send({ image: videoElement });
+                            } catch (e) {
+                                // 忽略偶发错误，继续推帧
+                            }
+                            requestAnimationFrame(pump);
+                        }
+                        pump();
+                    } catch (e) {
+                        console.error('getUserMedia fallback failed:', e);
+                        if (loadingEl) loadingEl.textContent = '无法访问摄像头：请在 Safari 设置中开启权限';
+                    }
+                }
+            }
+        })();
 
     </script>
 </body>

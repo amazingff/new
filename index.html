@@ -67,8 +67,8 @@
 
     <script>
         // --- 配置 ---
-        const PARTICLE_COUNT = 4000; // 粒子总数
-        const PARTICLE_SIZE = 4;
+        const PARTICLE_COUNT = 10000; // 粒子总数
+        const PARTICLE_SIZE = 3;
         const CANVAS_WIDTH = 1000; // 用于生成文字的画布宽度
         const CANVAS_HEIGHT = 500;
         
@@ -83,6 +83,23 @@
         // 手部交互相关
         let handPosition = new THREE.Vector3(9999, 9999, 0); // 手部在世界坐标中的位置
         let visibleWidth, visibleHeight; // 视口在 z=0 处的物理宽高
+
+        // 辅助函数：生成圆形纹理
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            // 绘制实心圆，边缘清晰
+            ctx.beginPath();
+            ctx.arc(32, 32, 28, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
 
         // 初始化 Three.js
         function initThree() {
@@ -140,11 +157,12 @@
             // 材质
             const material = new THREE.PointsMaterial({
                 size: PARTICLE_SIZE,
+                map: createCircleTexture(),
                 vertexColors: true,
-                blending: THREE.AdditiveBlending,
+                blending: THREE.NormalBlending,
                 depthTest: false,
                 transparent: true,
-                opacity: 0.9
+                opacity: 1.0
             });
 
             particles = new THREE.Points(geometry, material);
@@ -280,7 +298,7 @@
                     colorHue = 0.9; 
                     break;
                 case '2':
-                    newTargets = createTextTargets("2026 新年快乐");
+                    newTargets = createTextTargets("2026 新的一年");
                     colorHue = 0.1; 
                     break;
                 case '3':
@@ -444,8 +462,8 @@
             onFrame: async () => {
                 await hands.send({image: videoElement});
             },
-            width: 1280, 
-            height: 720
+            width: 1920, 
+            height: 1080
         });
 
         // 启动

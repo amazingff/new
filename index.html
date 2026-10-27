@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新年祝福</title>
+    <title>祝福</title>
     <style>
         body {
             margin: 0;
@@ -78,7 +78,7 @@
         let currentPositions = []; // 当前位置数组
         let colors = [];
         let isHandDetected = false;
-        let currentGesture = '5'; // 默认扩散
+        let currentGesture = null; // 初始扩散，双指时显示祝福
         
         // 手部交互相关
         let handPosition = new THREE.Vector3(9999, 9999, 0); // 手部在世界坐标中的位置
@@ -91,12 +91,12 @@
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
             
-            // 绘制实心圆，边缘清晰
+            // 绘制圆形粒子。
             ctx.beginPath();
             ctx.arc(32, 32, 28, 0, Math.PI * 2);
             ctx.fillStyle = 'white';
             ctx.fill();
-            
+
             const texture = new THREE.CanvasTexture(canvas);
             return texture;
         }
@@ -172,7 +172,7 @@
             window.addEventListener('resize', onWindowResize, false);
             
             // 初始状态：扩散
-            setShape('5');
+            setShape('scatter');
             
             animate();
         }
@@ -236,38 +236,17 @@
             return mapPointsToTargets(validPoints);
         }
 
-        // 2. 生成爱心形状
-        function createHeartTargets() {
-            const validPoints = [];
+        // 生成随机扩散的粒子目标点。
+        function createScatterTargets() {
+            const points = [];
             for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const t = Math.random() * Math.PI * 2;
-                const r = Math.sqrt(Math.random()); 
-                
-                let x = 16 * Math.pow(Math.sin(t), 3);
-                let y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-                
-                const scale = 10;
-                const z = (Math.random() - 0.5) * 40;
-                
-                x *= r * scale;
-                y *= r * scale;
-
-                validPoints.push({ x, y, z });
-            }
-            return mapPointsToTargets(validPoints);
-        }
-
-        // 3. 生成随机扩散形状
-        function createRandomTargets() {
-            const validPoints = [];
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                validPoints.push({
+                points.push({
                     x: (Math.random() - 0.5) * visibleWidth,
                     y: (Math.random() - 0.5) * visibleHeight,
                     z: (Math.random() - 0.5) * 600
                 });
             }
-            return mapPointsToTargets(validPoints);
+            return points;
         }
 
         // 将生成的点映射到 targetPositions
@@ -289,48 +268,18 @@
             if (currentGesture === type) return; 
             currentGesture = type;
             
-            let newTargets;
-            let colorHue = 0.0; 
+            const newTargets = type === '2'
+                ? createTextTargets('祝婷天天开心')
+                : createScatterTargets();
 
-            switch (type) {
-                case '1':
-                    newTargets = createTextTargets("祝倩倩");
-                    colorHue = 0.9; 
-                    break;
-                case '2':
-                    newTargets = createTextTargets("2026 新的一年");
-                    colorHue = 0.1; 
-                    break;
-                case '3':
-                    newTargets = createTextTargets("眉眼如初");
-                    colorHue = 0.6; 
-                    break;
-                case '4':
-                    newTargets = createTextTargets("风华如故");
-                    colorHue = 0.8; 
-                    break;
-                case '0': 
-                    newTargets = createHeartTargets();
-                    colorHue = 0.0; 
-                    break;
-                case '5': 
-                default:
-                    newTargets = createRandomTargets();
-                    colorHue = Math.random(); 
-                    break;
-            }
-
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                targetPositions[i] = newTargets[i];
-            }
-            
             const colorsAttr = geometry.attributes.color;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
+                targetPositions[i] = newTargets[i];
                 const color = new THREE.Color();
-                if (type === '5') {
-                     color.setHSL(Math.random(), 0.7, 0.5);
+                if (type === '2') {
+                    color.setHSL(0.1 + (Math.random() - 0.5) * 0.1, 0.8, 0.6);
                 } else {
-                     color.setHSL(colorHue + (Math.random() - 0.5) * 0.1, 0.8, 0.6);
+                    color.setHSL(Math.random(), 0.7, 0.5);
                 }
                 colorsAttr.setXYZ(i, color.r, color.g, color.b);
             }
@@ -391,7 +340,7 @@
             geometry.attributes.position.needsUpdate = true;
             
             // 旋转逻辑控制
-            if (['1', '2', '3', '4'].includes(currentGesture)) {
+            if (currentGesture === '2') {
                 particles.rotation.y += (0 - particles.rotation.y) * 0.1;
                 particles.rotation.x += (0 - particles.rotation.x) * 0.1;
             } else {
@@ -441,19 +390,12 @@
                 if (landmarks[16].y < landmarks[14].y) fingersUp++;
                 if (landmarks[20].y < landmarks[18].y) fingersUp++;
 
-                let gesture = '5';
-                if (fingersUp === 0) gesture = '0';
-                else if (fingersUp === 1) gesture = '1';
-                else if (fingersUp === 2) gesture = '2';
-                else if (fingersUp === 3) gesture = '3';
-                else if (fingersUp === 4) gesture = '4';
-                else gesture = '5';
-                
-                setShape(gesture);
+                setShape(fingersUp === 2 ? '2' : 'scatter');
 
             } else {
                 isHandDetected = false;
                 handPosition.set(9999, 9999, 0);
+                setShape('scatter');
             }
         }
 
